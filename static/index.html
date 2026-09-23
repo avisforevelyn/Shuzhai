@@ -412,7 +412,7 @@
     });
     var rest = prompts.filter(function(p){ return !p || p.identifier==null || !used[String(p.identifier)]; });
     if (rest.length){
-      sections.push({ title:'不在任何顺序表里的条目', desc:'prompts 里有、顺序表里没排进去的。旧工具就是把这些和别的角色号的表一起漏掉的。共 '+rest.length+' 条。', items: rest.map(function(p,k){
+      sections.push({ title:'游离条目 · 不在任何顺序表里', desc:'这不是第二张顺序表。这些条目躺在预设的条目库里，却没有被排进任何一张顺序表，所以酒馆界面里看不到它们，发请求时也不会带上，等于作者留在抽屉里的备用件或忘了排进去的东西。想用就在酒馆的提示词管理里手动把它加进列表。共 '+rest.length+' 条。', items: rest.map(function(p,k){
         var tags=[]; if (p.marker) tags.push({t:'占位 marker',cls:'kind'}); if (p.system_prompt) tags.push({t:'系统',cls:'kind'}); if (p.role) tags.push({t:'role: '+p.role,cls:''}); if (p.enabled===false) tags.push({t:'关闭',cls:'off'});
         var kv=[['identifier', p.identifier]]; if (p.injection_position!=null) kv.push(['injection_position', p.injection_position]); if (p.injection_depth!=null) kv.push(['depth', p.injection_depth]);
         return { ix:k+1, title:p.name || String(p.identifier), tags:tags, kv:kv, body: p.marker ? '（占位符）' : txt(p.content) };
