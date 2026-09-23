@@ -502,7 +502,7 @@
     var h = '';
     h += '<div class="bar"><div class="row" style="margin:0"><button class="primary" id="copyAll">复制全部文字</button><button id="dlMd">下载 .md</button><button id="dlTxt">下载 .txt</button><button id="expandAll">全部展开</button><button id="collapseAll">全部收起</button><label style="display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:var(--dim);cursor:pointer;letter-spacing:.03em;"><input type="checkbox" id="withParams" style="accent-color:var(--accent);width:14px;height:14px;"/>导出带参数</label></div><input class="search" id="q" placeholder="在所有条目里搜关键词、名字、正文…"/></div>';
     docs.forEach(function(doc, di){
-      var K = {card:'角色卡', preset:'预设', book:'世界书', unknown:'没认出来'};
+      var K = {card:'角色卡', preset:'预设', book:'世界书', beauty:'美化主题', unknown:'没认出来'};
       h += '<div class="doc" data-di="'+di+'"><div class="meta"><b>'+esc(doc.title)+'</b><span class="tag kind">'+K[doc.kind]+'</span><span>'+esc(doc.stats||'')+'</span>'+(doc.name?'<span>· '+esc(doc.name)+'</span>':'')+'</div>';
       doc.sections.forEach(function(s){
         if (PARAM_SECS[s.title] && s.table) {
