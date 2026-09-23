@@ -330,15 +330,42 @@
   }
 
   // ───────── 识别 ─────────
+  // 角色卡的各种皮: V1 裸卡 / V2 V3 spec / {data:{...}} / {character:{...}} / 老 TavernAI-Pygmalion(char_name,char_persona,world_scenario,char_greeting,example_dialogue) / 双重编码的字符串
+  var CARD_ALIAS = { char_name:'name', char_persona:'personality', world_scenario:'scenario', char_greeting:'first_mes', example_dialogue:'mes_example', first_message:'first_mes', greeting:'first_mes', persona:'description', example_dialogs:'mes_example', alternate_greeting:'alternate_greetings' };
+  function cardLike(d){
+    if (!d || typeof d!=='object' || Array.isArray(d)) return false;
+    if (d.first_mes!=null || d.mes_example!=null || d.char_greeting!=null || d.char_persona!=null || d.world_scenario!=null || d.first_message!=null || d.greeting!=null || d.example_dialogue!=null) return true;
+    if (Array.isArray(d.alternate_greetings) && d.alternate_greetings.length) return true;
+    if (d.description!=null && (d.name!=null || d.personality!=null || d.scenario!=null || d.char_name!=null)) return true;
+    if (d.character_book && (d.name!=null || d.char_name!=null)) return true;
+    return false;
+  }
+  function unwrapCard(o){
+    if (!o || typeof o!=='object') return null;
+    if (cardLike(o)) return o;
+    var keys=['data','character','card','char','chara','node'];
+    for (var i=0;i<keys.length;i++){ var v=o[keys[i]]; if (v && typeof v==='object'){ if (cardLike(v)) return v; var vv=unwrapCard(v); if (vv) return vv; } }
+    return null;
+  }
+  function normCard(o){
+    var d = unwrapCard(o) || ((o && o.data && typeof o.data==='object') ? o.data : o) || {};
+    var n = {}; Object.keys(d).forEach(function(k){ n[k]=d[k]; });
+    Object.keys(CARD_ALIAS).forEach(function(k){ if (n[k]!=null && n[CARD_ALIAS[k]]==null) n[CARD_ALIAS[k]]=n[k]; });
+    if (typeof n.alternate_greetings==='string') n.alternate_greetings=[n.alternate_greetings];
+    if (n.tags && typeof n.tags==='string') n.tags=n.tags.split(/[,，、]/).map(function(s){ return s.trim(); }).filter(Boolean);
+    return n;
+  }
   function detect(o){
+    if (typeof o==='string'){ try { o=JSON.parse(o); } catch(e){ return 'unknown'; } }
     if (!o || typeof o!=='object') return 'unknown';
-    if (o.spec && /chara_card/.test(o.spec)) return 'card';
-    if (o.data && (o.data.first_mes!=null || o.data.description!=null) ) return 'card';
-    if (o.first_mes!=null || (o.description!=null && o.name!=null && o.personality!=null)) return 'card';
+    if (o.spec && /chara_card/.test(String(o.spec))) return 'card';
+    if (unwrapCard(o)) return 'card';
     if (Array.isArray(o.prompts) || Array.isArray(o.prompt_order)) return 'preset';
     if (o.entries && (typeof o.entries==='object')) return 'book';
     if (Array.isArray(o) && o.length && (o[0].keys || o[0].key || o[0].content!=null)) return 'book';
     if (o.temperature!=null && o.openai_max_context!=null) return 'preset';
+    // 酒馆主题(界面美化)json: 一眼认得出的字段
+    if (o.custom_css!=null || (o.blur_strength!=null && o.chat_width!=null) || (o.main_text_color!=null && o.chat_tint_color!=null)) return 'beauty';
     return 'unknown';
   }
 
@@ -427,7 +454,8 @@
 
   // ───────── 角色卡 ─────────
   function parseCard(o, name){
-    var d = (o.data && typeof o.data==='object') ? o.data : o;
+    if (typeof o==='string'){ try { o=JSON.parse(o); } catch(e){} }
+    var d = normCard(o);
     var sections = [];
     var basic = [];
     ['name','creator','character_version','tags','creator_notes','creatorcomment'].forEach(function(k){ if (has(d[k]) || (Array.isArray(d[k]) && d[k].length)) basic.push([k, Array.isArray(d[k]) ? d[k].join(' , ') : String(d[k])]); });
@@ -506,15 +534,34 @@
     $('#q').oninput = function(e){ var q = e.target.value.trim().toLowerCase(); document.querySelectorAll('details.item').forEach(function(d){ d.style.display = (!q || d.getAttribute('data-s').indexOf(q)>=0) ? '' : 'none'; }); };
   }
 
+  // ───────── 酒馆主题 / 说不上来的 json ─────────
+  function parseTheme(o, name){
+    var table=[], items=[], ix=0;
+    Object.keys(o).forEach(function(k){ var v=o[k]; if (k==='custom_css') return; if (v==null || v==='') return; if (typeof v==='object'){ var js=JSON.stringify(v); if (js.length>200){ items.push({ ix:++ix, title:k, tags:[{t:'json',cls:'kind'}], kv:[], body: txt(v) }); return; } table.push([k, js]); return; } table.push([k, String(v)]); });
+    if (has(o.custom_css)) items.unshift({ ix:0, title:'自定义 CSS custom_css', tags:[{t:String(o.custom_css).length+' 字',cls:''}], kv:[], body:String(o.custom_css) });
+    items.forEach(function(it,i){ it.ix=i+1; });
+    var sections=[{ title:'主题参数', desc:'颜色、模糊、布局开关，原样列出。', table: table }];
+    if (items.length) sections.push({ title:'正文', desc:'', items: items });
+    return { name:name, kind:'beauty', title:(o.name||name||'主题'), stats:'酒馆主题 · 参数 '+table.length+(has(o.custom_css)?' · 带自定义 CSS':''), sections:sections };
+  }
+  function parseUnknown(o, name){
+    var table=[], items=[];
+    if (o && typeof o==='object' && !Array.isArray(o)) Object.keys(o).forEach(function(k){ var v=o[k]; if (v==null) return; var sv = typeof v==='object' ? JSON.stringify(v) : String(v); if (sv.length<=120) table.push([k, sv]); else items.push({ ix:items.length+1, title:k, tags:[], kv:[['长度', sv.length]], body: typeof v==='object' ? txt(v) : String(v) }); });
+    var guess = (o&&o.findRegex!=null) ? '像是酒馆正则脚本' : (o&&o.scriptName!=null) ? '像是脚本' : (Array.isArray(o) ? '是一个数组，'+o.length+' 项' : '没认出是什么');
+    var sections=[]; if (table.length) sections.push({ title:'字段', desc:guess+'，先把短字段列出来。', table: table }); if (items.length) sections.push({ title:'长字段', items: items });
+    sections.push({ title:'原始内容', items:[{ ix:1, title:'json', tags:[], kv:[], body: txt(o) }] });
+    return { name:name, kind:'unknown', title:(o&&(o.name||o.scriptName))||name||'?', stats:guess+'，原样给你', sections:sections };
+  }
   function addJson(o, name){
     var kind = detect(o); var doc;
     try {
       if (kind==='preset') doc = parsePreset(o, name);
       else if (kind==='book') doc = parseBook(o, name);
       else if (kind==='card') doc = parseCard(o, name);
-      else doc = { name:name, kind:'unknown', title:name||'?', stats:'没认出是什么，原样给你', sections:[{ title:'原始内容', items:[{ ix:1, title:'json', tags:[], kv:[], body: txt(o) }] }] };
+      else if (kind==='beauty') doc = parseTheme(o, name);
+      else doc = parseUnknown(o, name);
     } catch(e){ doc = { name:name, kind:'unknown', title:name||'?', stats:'解析出错: '+e.message, sections:[{ title:'原始内容', items:[{ ix:1, title:'json', tags:[], kv:[], body: txt(o) }] }] }; }
-    docs.push(doc); render(); toast(({card:'角色卡',preset:'预设',book:'世界书'})[kind] ? '认出来了：'+({card:'角色卡',preset:'预设',book:'世界书'})[kind] : '没认出类型，原样列出');
+    docs.push(doc); render(); toast(({card:'角色卡',preset:'预设',book:'世界书',beauty:'美化主题'})[kind] ? '认出来了：'+({card:'角色卡',preset:'预设',book:'世界书',beauty:'美化主题'})[kind] : '没认出类型，原样列出');
     setTimeout(function(){ var el = document.querySelector('.doc[data-di="'+(docs.length-1)+'"]'); if (el) el.scrollIntoView({ behavior:'smooth', block:'start' }); }, 50);
   }
   function openPreview(){ $('#previewModal').hidden=false; }
@@ -528,7 +575,7 @@
   function ingestFile(f){
     var name=f.name||'';
     if (/\.png$/i.test(name)||f.type==='image/png'){ f.arrayBuffer().then(function(buf){ var o=pngChara(buf); if (!o){ toast(name+' 里没有角色卡数据'); return; } ingest(detect(o),'png',f,name,o); }); return; }
-    f.text().then(function(t){ var o=null; try{ o=JSON.parse(t); }catch(e){} if (o&&typeof o==='object'){ ingest(detect(o),'json',t,name,o); } else { ingest('beauty','text',t,name,t); } });
+    f.text().then(function(t){ var o=null; try{ o=JSON.parse(t); if (typeof o==='string'){ var o2=JSON.parse(o); if (o2&&typeof o2==='object'){ o=o2; t=JSON.stringify(o2); } } }catch(e){} if (o&&typeof o==='object'){ ingest(detect(o),'json',t,name,o); } else { ingest('beauty','text',t,name,t); } });
   }
   // 把一个文件读成上传要用的东西: {kind,format,body,filename,name,blob?}。识别不了返回 null。
   function readForUpload(f){
@@ -617,7 +664,7 @@
   function fmtDate(ms){ try { var d=new Date(ms); function p(n){ return (n<10?'0':'')+n; } return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes()); } catch(e){ return ''; } }
   function guessName(obj, kind, fn){
     try {
-      if (kind==='card'){ var d=(obj.data&&typeof obj.data==='object')?obj.data:obj; if (d.name) return String(d.name); }
+      if (kind==='card'){ var d=normCard(obj); if (d.name) return String(d.name); }
       if (kind==='book' && obj && obj.name) return String(obj.name);
     } catch(e){}
     return (fn||'').replace(/\.(json|png|css|txt)$/i,'') || '未命名';
