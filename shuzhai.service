@@ -1,0 +1,17 @@
+# /etc/systemd/system/shuzhai.service  ·  sudo systemctl enable --now shuzhai
+[Unit]
+Description=Shuzhai (书斋) vault
+After=network.target
+
+[Service]
+WorkingDirectory=/opt/shuzhai
+Environment=SHUZHAI_HOST=127.0.0.1
+Environment=SHUZHAI_PORT=8790
+Environment=SHUZHAI_USER=me
+Environment=SHUZHAI_PASS=change-me
+ExecStart=/usr/bin/python3 /opt/shuzhai/server.py
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

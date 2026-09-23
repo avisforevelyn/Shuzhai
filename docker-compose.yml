@@ -1,0 +1,12 @@
+services:
+  shuzhai:
+    build: .
+    ports:
+      - "8790:8790"
+    environment:
+      SHUZHAI_USER: "me"          # change me
+      SHUZHAI_PASS: "change-me"   # change me
+      SHUZHAI_MAX_MB: "64"
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
