@@ -380,7 +380,7 @@
     var orders = Array.isArray(o.prompt_order) ? o.prompt_order.filter(function(x){ return x && Array.isArray(x.order); }) : [];
     // 生效的全局表(100001)永远排第一, 其余按长度
     orders.sort(function(a,b){ var la=String(a.character_id)==='100001'?1:0, lb=String(b.character_id)==='100001'?1:0; if (la!==lb) return lb-la; return b.order.length - a.order.length; });
-    var liveIds = {}; if (orders.length && String(orders[0].character_id)==='100001') orders[0].order.forEach(function(e){ liveIds[String(e.identifier)] = true; });
+    var liveIds = {}, livePos = {}; if (orders.length && String(orders[0].character_id)==='100001') orders[0].order.forEach(function(e, i){ liveIds[String(e.identifier)] = true; livePos[String(e.identifier)] = { n: i+1, on: e.enabled!==false }; });
     var sections = [];
     // 参数
     var PK = ['temperature','top_p','top_k','top_a','min_p','frequency_penalty','presence_penalty','repetition_penalty','openai_max_context','openai_max_tokens','max_context_unlocked','stream_openai','wrap_in_quotes','names_behavior','send_if_empty','impersonation_prompt','new_chat_prompt','new_group_chat_prompt','new_example_chat_prompt','continue_nudge_prompt','group_nudge_prompt','wi_format','scenario_format','personality_format','assistant_prefill','assistant_impersonation','claude_use_sysprompt','use_makersuite_sysprompt','squash_system_messages','continue_prefill','continue_postfix','function_calling','seed','n','reasoning_effort','show_thoughts','enable_web_search','request_images','extensions'];
@@ -398,6 +398,7 @@
         if (p.system_prompt) tags.push({t:'系统', cls:'kind'});
         if (p.role) tags.push({t:'role: '+p.role, cls:''});
         var kv = [['identifier', id]];
+        if (oi>0 && livePos[id]) kv.push(['在顺序表 1', '第 '+livePos[id].n+' 条，那里'+(livePos[id].on?'启用':'关闭')+(String(p.name||'')!==id?'，同一条':'')]);
         if (p.injection_position!=null) kv.push(['injection_position', p.injection_position===1?'1 · 按深度':'0 · 相对']);
         if (p.injection_depth!=null) kv.push(['depth', p.injection_depth]);
         if (p.injection_order!=null) kv.push(['order', p.injection_order]);
@@ -406,7 +407,7 @@
       });
       var cid=String(ord.character_id), who = cid==='100001' ? '现行酒馆真正生效的全局表' : cid==='100000' ? '旧版酒馆的默认表，新版不再读它' : '作者本地某个角色的专属表（角色编号 '+cid+'，只在作者自己机器上生效，换台机器就是废表）';
       var dup = 0; if (oi>0 && Object.keys(liveIds).length) ord.order.forEach(function(e){ if (liveIds[String(e.identifier)]) dup++; });
-      var dupNote = (oi>0 && Object.keys(liveIds).length) ? ((dup===ord.order.length) ? ' 这 '+dup+' 条在顺序表 1 里全都有，这张表没有任何新东西，可以不看。' : ' 其中 '+dup+' 条顺序表 1 里也有，另外 '+(ord.order.length-dup)+' 条只在这张表里。') : '';
+      var dupNote = (oi>0 && Object.keys(liveIds).length) ? ((dup===ord.order.length) ? ' 这 '+dup+' 条在顺序表 1 里全都有（同一个 identifier，作者可能改了名字、挪了位置、换了开关，每条下面标了它在表 1 的第几条），这张表没有任何新东西。' : ' 其中 '+dup+' 条顺序表 1 里也有，另外 '+(ord.order.length-dup)+' 条只在这张表里。') : '';
       sections.push({ title:'顺序表 '+(oi+1)+' · character_id '+ord.character_id, desc:who+'。按预设里真实的插入顺序排，共 '+ord.order.length+' 条，其中启用 '+on+' 条。'+dupNote, items: items });
     });
     var rest = prompts.filter(function(p){ return !p || p.identifier==null || !used[String(p.identifier)]; });
