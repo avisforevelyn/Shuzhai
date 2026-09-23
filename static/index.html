@@ -342,6 +342,8 @@
   }
   function unwrapCard(o){
     if (!o || typeof o!=='object') return null;
+    // V2/V3 的 data 优先: 很多卡顶层也留着一份残缺的 V1 字段, 真正完整的在 data 里
+    if (o.data && typeof o.data==='object' && cardLike(o.data)) return o.data;
     if (cardLike(o)) return o;
     var keys=['data','character','card','char','chara','node'];
     for (var i=0;i<keys.length;i++){ var v=o[keys[i]]; if (v && typeof v==='object'){ if (cardLike(v)) return v; var vv=unwrapCard(v); if (vv) return vv; } }
@@ -350,6 +352,8 @@
   function normCard(o){
     var d = unwrapCard(o) || ((o && o.data && typeof o.data==='object') ? o.data : o) || {};
     var n = {}; Object.keys(d).forEach(function(k){ n[k]=d[k]; });
+    // data 里缺的字段, 顶层有就补上(只补缺, 不覆盖)
+    if (d!==o && o && typeof o==='object') Object.keys(o).forEach(function(k){ if (k!=='data' && k!=='spec' && k!=='spec_version' && n[k]==null && o[k]!=null && typeof o[k]!=='object') n[k]=o[k]; });
     Object.keys(CARD_ALIAS).forEach(function(k){ if (n[k]!=null && n[CARD_ALIAS[k]]==null) n[CARD_ALIAS[k]]=n[k]; });
     if (typeof n.alternate_greetings==='string') n.alternate_greetings=[n.alternate_greetings];
     if (n.tags && typeof n.tags==='string') n.tags=n.tags.split(/[,，、]/).map(function(s){ return s.trim(); }).filter(Boolean);
